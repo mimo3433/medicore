@@ -221,4 +221,4 @@ ISC
 
 ## Support
 
-For support, email support@medicore.com or open an issue in the repository.
+For support, email shadow5ty9@gmail.com or open an issue in the repository.
