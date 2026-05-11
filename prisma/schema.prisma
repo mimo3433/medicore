@@ -1,0 +1,340 @@
+// Prisma Schema for MediCore Healthcare Booking Platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum UserRole {
+  ADMIN
+  DOCTOR
+  PATIENT
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+  REFUNDED
+}
+
+enum PaymentStatus {
+  INITIATED
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum SlotStatus {
+  AVAILABLE
+  RESERVED
+  BOOKED
+  CANCELLED
+  EXPIRED
+}
+
+enum NotificationType {
+  BOOKING_CONFIRMED
+  APPOINTMENT_REMINDER
+  PAYMENT_SUCCESS
+  PAYMENT_FAILED
+  CANCELLATION
+  RESCHEDULING
+  SYSTEM
+}
+
+enum NotificationChannel {
+  EMAIL
+  PUSH
+  IN_APP
+}
+
+// ============================================
+// CORE TABLES
+// ============================================
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  password      String
+  role          UserRole @default(PATIENT)
+  isActive      Boolean  @default(true)
+  isVerified    Boolean  @default(false)
+  emailVerified DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+
+  // Relations
+  doctor        Doctor?
+  patient       Patient?
+  refreshTokens RefreshToken[]
+  auditLogs     AuditLog[]
+  notifications Notification[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revokedAt DateTime?
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Doctor {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  fullName            String
+  specialization      String
+  experience          Int      // years
+  qualification       String
+  consultationFee     Float
+  bio                 String?
+  languages           String[] // array of languages
+  rating              Float    @default(0)
+  totalReviews        Int      @default(0)
+  clinicLocation      String?
+  clinicAddress       String?
+  consultationDuration Int     @default(30) // minutes
+  profileImage        String?
+  isVerified          Boolean  @default(false)
+  verificationDate    DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  deletedAt           DateTime?
+
+  // Relations
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schedules         Schedule[]
+  appointments      Appointment[]
+  unavailableDates  UnavailableDate[]
+  slots             AppointmentSlot[]
+  reviews           Review[]
+
+  @@index([specialization])
+  @@index([rating])
+  @@index([isVerified])
+  @@map("doctors")
+}
+
+model Patient {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  fullName        String
+  dateOfBirth     DateTime?
+  gender          String?
+  phone           String?
+  address         String?
+  bloodGroup      String?
+  allergies       String?
+  emergencyContact String?
+  profileImage    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  // Relations
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+  reviews      Review[]
+
+  @@index([userId])
+  @@map("patients")
+}
+
+model Schedule {
+  id           String   @id @default(uuid())
+  doctorId     String
+  dayOfWeek    Int      // 0-6 (Sunday-Saturday)
+  startTime    String   // HH:MM format
+  endTime      String   // HH:MM format
+  slotDuration Int      @default(30) // minutes
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  slots  AppointmentSlot[]
+
+  @@unique([doctorId, dayOfWeek])
+  @@index([doctorId])
+  @@map("schedules")
+}
+
+model UnavailableDate {
+  id        String   @id @default(uuid())
+  doctorId  String
+  date      DateTime
+  reason    String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorId, date])
+  @@index([doctorId])
+  @@index([date])
+  @@map("unavailable_dates")
+}
+
+model AppointmentSlot {
+  id        String     @id @default(uuid())
+  scheduleId String?
+  doctorId  String
+  date      DateTime
+  startTime String     // HH:MM format
+  endTime   String     // HH:MM format
+  status    SlotStatus @default(AVAILABLE)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  // Relations
+  schedule    Schedule?   @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  doctor      Doctor      @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  appointment Appointment?
+
+  @@unique([doctorId, date, startTime])
+  @@index([doctorId])
+  @@index([date])
+  @@index([status])
+  @@map("appointment_slots")
+}
+
+model Appointment {
+  id              String            @id @default(uuid())
+  patientId       String
+  doctorId        String
+  slotId          String            @unique
+  status          AppointmentStatus @default(PENDING)
+  reason          String?
+  symptoms        String?
+  notes           String?
+  idempotencyKey  String?           @unique
+  paymentId       String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  cancelledAt     DateTime?
+  completedAt     DateTime?
+
+  // Relations
+  patient Patient          @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor  Doctor           @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  slot    AppointmentSlot   @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  payment Payment?
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([slotId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("appointments")
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  appointmentId   String?       @unique
+  amount          Float
+  currency        String        @default("USD")
+  status          PaymentStatus @default(INITIATED)
+  paymentMethod   String        @default("stripe")
+  transactionId   String?       @unique
+  paymentIntentId String?
+  failureReason   String?
+  refundedAt      DateTime?
+  idempotencyKey  String?       @unique
+  metadata        Json?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  appointment Appointment? @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  @@index([appointmentId])
+  @@index([transactionId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("payments")
+}
+
+model Notification {
+  id        String             @id @default(uuid())
+  userId    String
+  type      NotificationType
+  channel   NotificationChannel
+  title     String
+  message   String
+  isRead    Boolean            @default(false)
+  readAt    DateTime?
+  metadata  Json?
+  createdAt DateTime           @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  changes   Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([entity])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  patientId String
+  doctorId  String
+  rating    Int      // 1-5
+  comment   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor  Doctor  @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@index([doctorId])
+  @@index([patientId])
+  @@index([createdAt])
+  @@map("reviews")
+}
