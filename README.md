@@ -1,94 +1,155 @@
-# MediCore - Healthcare Booking Backend Platform
+# MediCore - Healthcare Appointment Platform
 
-A highly scalable, secure, production-ready backend platform for a healthcare appointment ecosystem where patients can seamlessly discover doctors, book appointments, make secure payments, receive notifications, and manage healthcare interactions in real time.
+A full-stack healthcare appointment booking platform where patients can discover doctors, book appointments, and manage their health — while doctors can manage schedules, track earnings, and handle patient bookings in real time.
 
 ## Features
 
+### Patient Features
+- **Find Doctors**: Search by name, specialty, location, or language
+- **Book Appointments**: Select date and time slots with real-time availability
+- **View Appointments**: Track upcoming, completed, and cancelled appointments
+- **Secure Payments**: Stripe-integrated payment processing
+- **Profile Management**: Update personal details and health information
+
+### Doctor Features
+- **Dashboard**: View today's appointments, patient stats, and earnings
+- **Schedule Management**: Create weekly availability schedules with slot generation
+- **Appointment Handling**: Confirm, cancel, or mark appointments as complete
+- **Earnings Tracking**: Auto-calculated earnings based on completed appointments
+- **Profile Editing**: Update specialization, fees, clinic address, and bio
+
+### Platform Features
 - **Authentication & Authorization**: JWT with refresh token rotation, RBAC for ADMIN/DOCTOR/PATIENT roles
-- **Doctor Management**: Profile management, availability scheduling, verification system
-- **Appointment Booking**: Concurrency-safe booking with PostgreSQL transactions and row-level locking
-- **Payment Integration**: Stripe integration with webhook verification
-- **Notification System**: Email, push notifications, and in-app notifications
-- **CSV Import/Export**: Bulk data operations for doctors, patients, and appointments
-- **Admin Dashboard**: Analytics, user management, refund processing
-- **Redis Caching**: Performance optimization with distributed caching
-- **Queue System**: BullMQ for background job processing
-- **Security**: Helmet.js, CORS, rate limiting, input sanitization
-- **Logging**: Winston/Pino with audit logging
+- **Concurrency-Safe Booking**: PostgreSQL SERIALIZABLE transactions with row-level locking (`FOR UPDATE`)
+- **Slot Availability**: Booked slots shown as unavailable in real time to prevent double-booking
+- **Time Guards**: Appointments cannot be marked complete before their scheduled time
+- **Redis Caching**: Slot availability and doctor profiles cached for performance
+- **Stripe Payments**: Payment intent creation with webhook handling
+- **Notification System**: Email and push notifications for booking confirmations
+- **Security**: Helmet.js, CORS, rate limiting, input sanitization, bcrypt password hashing
+- **Logging**: Winston structured logging with audit trails
 - **API Documentation**: Swagger/OpenAPI specs
 
 ## Tech Stack
 
+### Backend
 - **Runtime**: Node.js 20+
 - **Framework**: Express.js
 - **Language**: TypeScript
-- **Database**: PostgreSQL 15
+- **Database**: PostgreSQL 15 (Neon-compatible)
 - **ORM**: Prisma
 - **Cache**: Redis 7
 - **Queue**: BullMQ
 - **Payments**: Stripe
-- **Email**: Nodemailer/SendGrid
-- **Push Notifications**: Firebase
-- **File Storage**: AWS S3/Cloudinary
+- **Email**: Nodemailer
+- **Logging**: Winston
 - **API Docs**: Swagger/OpenAPI
-- **Containerization**: Docker & Docker Compose
-- **CI/CD**: GitHub Actions
+
+### Frontend
+- **Framework**: React 18 + TypeScript
+- **Build Tool**: Vite
+- **Styling**: Tailwind CSS
+- **UI Components**: shadcn/ui (Radix UI primitives)
+- **State Management**: Zustand (auth store)
+- **Data Fetching**: TanStack Query (React Query)
+- **Forms**: React Hook Form + Zod validation
+- **Charts**: Recharts
+- **Icons**: Lucide React
+- **Routing**: React Router DOM v6
 
 ## Prerequisites
 
 - Node.js 20+
-- PostgreSQL 15+
-- Redis 7+
-- Docker & Docker Compose (optional)
+- PostgreSQL 15+ (or Neon PostgreSQL)
+- Redis 7+ (or Redis Cloud)
 
 ## Installation
 
-1. Clone the repository:
+### 1. Clone & Backend Setup
+
 ```bash
 git clone https://github.com/yourusername/medicore.git
 cd medicore
-```
-
-2. Install dependencies:
-```bash
 npm install
 ```
 
-3. Set up environment variables:
+### 2. Environment Variables
+
+**Backend** — copy `.env.example` to `.env`:
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` with your configuration:
+Edit `.env`:
 ```env
 NODE_ENV=development
-PORT=3000
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/medicore?schema=public"
-JWT_SECRET=your-super-secret-jwt-key
-REDIS_HOST=localhost
-REDIS_PORT=6379
-STRIPE_SECRET_KEY=sk_test_your_key
-STRIPE_WEBHOOK_SECRET=whsec_your_secret
+PORT=5000
+API_VERSION=v1
+
+# Database (PostgreSQL)
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/doctor_appointments?schema=public
+
+# Redis
+REDIS_URL=redis://localhost:6379
+
+# JWT Secrets
+JWT_ACCESS_SECRET=your-super-secret-access-key
+JWT_REFRESH_SECRET=your-super-secret-refresh-key
+JWT_ACCESS_EXPIRATION=15m
+JWT_REFRESH_EXPIRATION=7d
+
+# Stripe
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PUBLISHABLE_KEY=pk_test_...
+
+# Email (SMTP)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+SMTP_FROM=noreply@medicore.com
+
+# CORS
+FRONTEND_URL=http://localhost:5173
 ```
 
-4. Run database migrations:
+**Frontend** — copy `.env.example` to `.env`:
 ```bash
-npx prisma migrate dev
+cd frontend
+cp .env.example .env
 ```
 
-5. Generate Prisma client:
+Edit `.env`:
+```env
+VITE_API_URL=http://localhost:5000/api/v1
+VITE_STRIPE_PUBLISHABLE_KEY=pk_test_...
+```
+
+### 3. Database Setup
+
 ```bash
+# From root directory
 npx prisma generate
+npx prisma db push   # or: npx prisma migrate dev
 ```
 
-## Development
+### 4. Run Development Servers
 
-Start the development server:
+**Backend** (port 5000):
 ```bash
+cd medicore
 npm run dev
 ```
 
-The API will be available at `http://localhost:3000`
+**Frontend** (port 5173):
+```bash
+cd medicore/frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173` in your browser.
 
 ## Docker Deployment
 
@@ -100,24 +161,20 @@ docker-compose up -d
 This will start:
 - PostgreSQL on port 5432
 - Redis on port 6379
-- API on port 3000
+- API on port 5000
 
 ## API Documentation
 
 Swagger documentation is available at:
 ```
-http://localhost:3000/api/v1/docs
+http://localhost:5000/api/v1/docs
 ```
 
 ## Testing
 
-Run unit tests:
+Run backend tests:
 ```bash
 npm test
-```
-
-Run tests with coverage:
-```bash
 npm run test:coverage
 ```
 
@@ -125,95 +182,74 @@ npm run test:coverage
 
 ```
 medicore/
-├── src/
+├── src/                          # Backend source
 │   ├── modules/
-│   │   ├── auth/           # Authentication module
-│   │   ├── doctors/        # Doctor management
-│   │   ├── patients/       # Patient management
-│   │   ├── schedules/      # Schedule & availability
-│   │   ├── appointments/   # Appointment booking
-│   │   ├── payments/       # Payment processing
-│   │   ├── notifications/  # Notification system
-│   │   ├── csv/            # CSV import/export
-│   │   └── admin/          # Admin dashboard
+│   │   ├── auth/                 # Authentication (JWT, login, register, logout)
+│   │   ├── doctors/              # Doctor profiles, search, verification
+│   │   ├── patients/             # Patient profiles
+│   │   ├── schedules/            # Weekly schedules & slot generation
+│   │   ├── appointments/         # Booking, status updates, completion
+│   │   ├── payments/             # Stripe payment intents & webhooks
+│   │   ├── notifications/        # Email & push notifications
+│   │   ├── csv/                  # Bulk import/export
+│   │   └── admin/                # Admin dashboard endpoints
 │   ├── common/
-│   │   ├── config/         # Configuration
-│   │   ├── database/       # Database connections
-│   │   ├── middleware/     # Express middleware
-│   │   ├── utils/          # Utility functions
-│   │   ├── events/         # Event emitters
-│   │   └── jobs/           # Background jobs
-│   ├── index.ts            # Express app setup
-│   └── app.ts              # Application entry point
+│   │   ├── config/               # App configuration
+│   │   ├── database/             # Prisma & Redis clients
+│   │   ├── middleware/           # Auth, rate limit, error handler, security
+│   │   ├── utils/                # Logger, response helpers, JWT
+│   │   └── types/                # Shared TypeScript types
+│   ├── index.ts                  # Express app setup & route registration
+│   └── app.ts                    # Server entry point
 ├── prisma/
-│   └── schema.prisma       # Database schema
-├── tests/
-│   ├── unit/               # Unit tests
-│   ├── integration/        # Integration tests
-│   └── setup.ts            # Test setup
-├── docker-compose.yml      # Docker configuration
-├── Dockerfile              # Docker image
+│   └── schema.prisma             # Database schema
+├── frontend/                     # React frontend
+│   ├── src/
+│   │   ├── pages/                # Route pages (Booking, Dashboard, Search, etc.)
+│   │   ├── components/
+│   │   │   ├── ui/               # shadcn/ui components (Button, Card, Input, etc.)
+│   │   │   └── layout/           # Layout, Header, Footer
+│   │   ├── lib/
+│   │   │   └── axios.ts          # API client with interceptors
+│   │   ├── store/
+│   │   │   └── authStore.ts      # Zustand auth state
+│   │   ├── App.tsx               # Router setup
+│   │   └── main.tsx              # Entry point
+│   ├── index.html
+│   └── vite.config.ts
+├── .env.example
+├── docker-compose.yml
 └── README.md
 ```
 
 ## Database Schema
 
-The platform uses PostgreSQL with the following core tables:
-- `users` - User accounts
-- `doctors` - Doctor profiles
-- `patients` - Patient profiles
-- `schedules` - Weekly schedules
-- `appointment_slots` - Time slots
-- `appointments` - Bookings
-- `payments` - Payment records
-- `notifications` - User notifications
-- `refresh_tokens` - JWT refresh tokens
-- `audit_logs` - System audit logs
+Core PostgreSQL tables:
+- `users` — User accounts (email, password, role)
+- `doctors` — Doctor profiles (name, specialization, fee, address, rating)
+- `patients` — Patient profiles (name, DOB, blood group, allergies)
+- `schedules` — Weekly recurring schedules
+- `appointment_slots` — Generated time slots (date, time, status)
+- `appointments` — Bookings linking patient + doctor + slot
+- `payments` — Stripe payment records
+- `notifications` — User notification queue
+- `refresh_tokens` — JWT refresh token store
 
-## Concurrency Handling
+## Concurrency & Race Condition Handling
 
-The booking system uses enterprise-grade concurrency protection:
-- PostgreSQL SERIALIZABLE transactions
-- Row-level locking using `FOR UPDATE`
-- Idempotency keys for booking/payment requests
-- Redis distributed locks (optional)
+- **SERIALIZABLE transactions** for all booking operations
+- **Row-level locking** (`SELECT ... FOR UPDATE`) on slot rows
+- **Idempotency keys** prevent duplicate bookings on retries
+- **Slot status machine**: `AVAILABLE` → `RESERVED` → `BOOKED`
 
-## Security Best Practices
+## Security
 
-- Password hashing with bcrypt
-- HTTP-only refresh token cookies
-- Rate limiting on all endpoints
-- Input sanitization
-- SQL injection prevention (Prisma ORM)
-- XSS protection (Helmet.js)
-- CSRF protection strategy
-- CORS configuration
-- Environment variable management
-
-## Scalability Strategy
-
-- Stateless API architecture
-- Horizontal scaling support
-- Redis distributed caching
-- Queue-based background processing
-- Database connection pooling
-- Optimized database queries with indexing
-
-## Monitoring & Logging
-
-- Winston/Pino structured logging
-- Request/response logging
-- Error tracking
-- Audit logging for sensitive operations
-- Health check endpoint: `/health`
-
-## CI/CD Pipeline
-
-The project uses GitHub Actions for:
-- Automated testing on push/PR
-- Docker image building
-- Deployment to production
-- Code quality checks
+- Bcrypt password hashing (12 rounds)
+- JWT access tokens (15 min) + refresh tokens (7 days)
+- Rate limiting on auth endpoints
+- Helmet.js headers, CORS, input sanitization
+- Prisma ORM prevents SQL injection
+- Environment variables for all secrets
 
 ## License
 
